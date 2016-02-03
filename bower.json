@@ -1,0 +1,30 @@
+{
+  "name": "pling-ui",
+  "version": "0.1.0",
+  "homepage": "https://github.com/plingbr/pling-ui",
+  "authors": [
+    "vinnylinck <vinnylinck@outlook.com>"
+  ],
+  "description": "Pling Web componentes for AngularJS",
+  "main": "pling-ui.min.js",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular": "~1.4.9",
+    "angular-animate": "~1.4.9",
+    "angular-aria": "~1.4.9",
+    "angular-material": "~1.0.3",
+    "angular-datetime": "~2.1.0",
+    "jquery": "~2.2.0",
+    "angular-route": "~1.4.9"
+    },
+    "resolutions": {
+        "angular": ">=1.4.9"
+    }
+}
