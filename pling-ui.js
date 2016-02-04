@@ -69,6 +69,452 @@
     });
 }());
 
+/*global angular, console, document, $, window, URL*/
+(function () {
+    'use strict';
+
+    // creating directive
+    function PlgDataTable($log, $compile, $location, $http, $rootScope, core) {
+        return {
+            restrict: 'E',
+            scope: {
+                params: '=',
+                serviceModule: '=',
+                dynamicForm: '=',
+                filterDefault: '=',
+                orderBy: '=',
+                limit: '=',
+                page: '=',
+                total: '=',
+                viewItems: '=',
+                gapiDataTableFilters: '=',
+                paginate: '&'
+            },
+            replace: true,
+
+            // linking directive
+            link: function (scope, element) {
+
+                var builder, compiledElm;
+
+                // validating bind value
+                if (scope.params) {
+                    builder = {
+                        buildTemplate: function (scope, cb) {
+                            var template;
+
+                            scope.selected  = []; // DataTable - Checkbox
+                            scope.chkList   = false;
+
+
+                            scope.editView      = this.editView;
+                            scope.toggleAll     = this.toggleAll;
+                            scope.allActions    = this.allActions;
+
+
+                            scope.options = {
+                                autoSelect: false,
+                                boundaryLinks: false,
+                                largeEditDialog: false,
+                                pageSelector: false,
+                                rowSelection: true
+                            };
+
+                            // input init orderBy... ex: name, type_ip, etc...
+                            scope.query = {
+                                order: scope.orderBy
+                            };
+
+
+                            template =  '<md-content layout="column" flex>' +
+                                        '   <md-table-container>' +
+                                        '       <table md-table md-row-select="options.rowSelection" ng-model="selected" md-progress="promise" ng-click="toggleAll()">' +
+                                        '       <thead md-head md-order="query.order" md-on-reorder="logOrder">' +
+                                        '           <tr md-row>' +
+                                        '               <th md-column md-order-by="{{ header.ref }}" ng-repeat="header in dynamicForm.showInList"><span>{{ header.label }}</span></th>' +
+                                        '           </tr>' +
+                                        '       </thead>' +
+                                        '       <tbody md-body>' +
+                                        '           <tr md-row md-select="obj" md-on-select="toggleAll" md-on-deselect="toggleAll" ng-click="editView(serviceModule.module, obj._id)" md-on-select="logItem" md-auto-select="options.autoSelect" ng-repeat="obj in params | filter: filter.search | orderBy: query.order" style="cursor: pointer !important">' +
+                                        '               <td md-cell ng-repeat="item in dynamicForm.showInList">{{obj[item.ref]}}</md-cell>' +
+                                        '               <td md-cell ng-show="gapiDataTableFilters">' +
+
+                                        '                   <plg-data-table-filters' +
+                                        '                       params="obj"' +
+                                        '                       service-module="serviceModule"' +
+                                        '                       dynamic-form="dynamicForm"' +
+                                        '                       filter-default="filterDefault">' +
+                                        '                   </plg-data-table-filters>' +
+
+                                        '               </td>' +
+                                        '           </tr>' +
+                                        '       </tbody>' +
+                                        '       </table>' +
+                                        '   </md-table-container>' +
+
+                                        '   <md-table-pagination md-limit="limit" md-page="page" md-total="{{total}}" md-on-paginate="paginate()"></md-table-pagination>' +
+
+                                        '   <div layout="row" layout-align="start start" class="actionDataTable">' +
+                                        '       <md-menu-item ng-show="chkList" ng-repeat="item in viewItems" layout-align="center center">' +
+                                        '           <md-button class="md-icon-button allActionsIcon" aria-label="Ações" ng-click="allActions(item.method, item.action, item.msg)">' +
+                                        '               <md-tooltip>{{item.name}}</md-tooltip>' +
+                                        '               <md-icon md-svg-src="{{item.moduleIcon}}" class="icons"></md-icon>' +
+                                        '           </md-button>' +
+                                        '       </md-menu-item>' +
+                                        '   </div>' +
+                                        '</md-content>';
+
+
+                            cb(null, template);
+                        },
+
+                        editView : function (path, id) {
+                            $location.path(path + '/' + id);
+                        },
+
+                        // Display "show / hide" buttons, ex: Inativar, Excluir...
+                        toggleAll : function () {
+                            scope.chkList = false;
+                            if (scope.selected.length > 0) {
+                                scope.chkList = true;
+                            }
+                        },
+
+                        // Execute actions ex: Inativar, Excluir...
+                        allActions : function (method, action, msg) {
+
+                            var payload = {};
+
+                            payload[method] = action;
+
+
+                            scope.selected.forEach(function (obj, index) {
+                                /*jslint nomen:true*/
+                                $http.patch(core.getAppCoreUrl() + scope.serviceModule.collection + '/' + obj._id, payload)
+                                    .success(function (data) {
+                                        if (data) {
+                                            if (index + 1  === scope.selected.length) {
+                                                $rootScope.$emit('saveRecordSuccess', 'Registros ' + msg + ' com sucesso.');
+                                            }
+                                            scope.selected.length = 0; // Reset "CHECKBOX checked"
+                                            scope.chkList = false;
+                                            $rootScope.$emit('research', [obj], method, action);
+                                        } else {
+                                            $rootScope.$emit('recordError', 'Ocorreu um erro ao ' + msg);
+                                        }
+                                    });
+                                /*jslint nomen:false*/
+                            });
+                        }
+
+                    };
+
+                    // defining template
+                    builder.buildTemplate(scope, function (err, template) {
+
+                        // handling error
+                        if (err) {
+                            $log.warn(err);
+                            return;
+                        }
+
+                        // compiling template
+                        compiledElm = $compile(template)(scope);
+
+                        // handling post compile hooks
+                        if (builder.postCompile) {
+                            builder.postCompile(compiledElm);
+                        }
+
+                        // replacing into DOM
+                        element.replaceWith(compiledElm);
+
+                    });
+                }
+            }
+        };
+    }
+
+    // injecting dependencies
+    PlgDataTable.$inject = ['$log', '$compile', '$location', '$http', '$rootScope', 'coreApiService'];
+
+    // registering into angular
+    angular.module('plingUi').directive('plgDataTable', PlgDataTable);
+}());
+/*global angular, console, document, $, window, URL*/
+(function () {
+    'use strict';
+
+    // creating directive
+    function PlgDataTableFilters($rootScope, $log, $compile, $http, core, formatResultList) {
+        return {
+            restrict: 'E',
+            scope: {
+                params: '=',
+                serviceModule: '=',
+                dynamicForm: '=',
+                filterDefault: '='
+            },
+            replace: true,
+
+            // linking directive
+            link: function (scope, element) {
+
+                var builder, compiledElm;
+
+                // validating bind value
+                if (scope.params) {
+                    builder = {
+                        buildTemplate: function (scope, cb) {
+                            var template;
+
+
+                            scope.actionsList = this.actionsList;
+
+
+                            //---------------------
+                            scope.collection    = scope.serviceModule.collection;
+                            scope.module        = scope.serviceModule.module;
+                            if (scope.serviceModule.subModuleEdit) {
+                                scope.module    = scope.serviceModule.module + '/' + scope.serviceModule.subModuleEdit;
+                            }
+
+                            scope.resultViewItems = formatResultList.action(scope.filterDefault.action, scope.serviceModule.viewItems);
+                            //---------------------
+
+                            template =  '<md-menu md-offset="0 -7" md-position-mode="target-right target">' +
+                                        '    <md-button aria-label="" class="md-icon-button" ng-click="$mdOpenMenu($event)" >' +
+                                        '        <md-tooltip>Ações</md-tooltip>' +
+                                        '        <md-icon md-svg-src="assets/images/icone_mais.svg"></md-icon>' +
+                                        '    </md-button>' +
+                                        '    <md-menu-content layout="column" layout-wrap width="4" >' +
+                                        '        <md-menu-item flex ng-show="module">' +
+                                        '           <p><font color="#959595">Alterar Status</font></p>' +
+                                        '        </md-menu-item>' +
+                                        '        <md-menu-item flex ng-repeat="item in resultViewItems">' +
+                                        '            <md-button ng-click="actionsList(params, \'Registro\', item, collection)" style="margin-left: 15px !important">' +
+                                        '                 <md-icon md-svg-src="{{item.moduleIcon}}"></md-icon>' +
+                                        '                 {{item.name}}' +
+                                        '            </md-button>' +
+                                        '        </md-menu-item>' +
+                                        '    </md-menu-content>' +
+                                        '</md-menu>';
+
+                            cb(null, template);
+                        },
+
+                        actionsList: function (param, label, item, collection) {
+                            var payload = {},
+                                getParam;
+
+                            /*jslint nomen:true*/
+                            getParam                = param._id;
+                            /*jslint nomen:false*/
+                            payload[item.method]    = item.action;
+
+                            $http.patch(core.getAppCoreUrl() + collection + '/' + getParam, payload)
+                                .success(function (data) {
+                                    if (data) {
+                                        $rootScope.$emit('saveRecordSuccess', label + ' ' + item.msg + ' com sucesso.');
+                                        $rootScope.$emit('research', [param], item.method, item.action);
+                                    } else {
+                                        $rootScope.$emit('recordError', 'Ocorreu um erro ao ' + item.msg + ' ' + collection);
+                                    }
+                                });
+                        }
+
+                    };
+
+                    // defining template
+                    builder.buildTemplate(scope, function (err, template) {
+
+                        // handling error
+                        if (err) {
+                            $log.warn(err);
+                            return;
+                        }
+
+                        // compiling template
+                        compiledElm = $compile(template)(scope);
+
+                        // handling post compile hooks
+                        if (builder.postCompile) {
+                            builder.postCompile(compiledElm);
+                        }
+
+                        // replacing into DOM
+                        element.replaceWith(compiledElm);
+
+                    });
+                }
+            }
+        };
+    }
+
+    // injecting dependencies
+    PlgDataTableFilters.$inject = ['$rootScope', '$log', '$compile', '$http', 'coreApiService', 'formatResultList'];
+
+    // registering into angular
+    angular.module('plingUi').directive('plgDataTableFilters', PlgDataTableFilters);
+}());
+
+/*global angular, console, document, $, jQuery, window, URL*/
+(function () {
+    'use strict';
+
+    // creating directive
+    function PlgDataTableSearch($log, $compile, $rootScope) {
+        return {
+            restrict: 'E',
+            scope: {
+                dynamicForm: '='
+            },
+            replace: true,
+
+            // linking directive
+            link: function (scope, element) {
+
+                var builder, compiledElm;
+
+                builder = {
+                    buildTemplate: function (scope, cb) {
+
+                        var template;
+
+                        scope.serializeQueryString  = this.serializeQueryString;
+                        scope.searchPeople          = this.searchPeople;
+                        scope.searchColorActive     = this.searchColorActive;
+                        scope.searchColorInactivate = this.searchColorInactivate;
+                        scope.colorIconsTrash       = this.colorIconsTrash;
+
+
+                        scope.search                   = [];
+                        scope.searchIconsTrash         = 'checkOffColorIconFilter';
+                        scope.searchIconsActive        = 'checkOffColorIconFilter';
+                        scope.searchIconsInactivate    = 'checkOffColorIconFilter';
+
+
+                        template =  '<div flex="25">' +
+                                    '    <md-input-container>' +
+                                    '        <label>Pesquisar</label>' +
+                                    '        <input ng-model="search.search">' +
+                                    '    </md-input-container>' +
+                                    '</div>' +
+
+                                    '<div style="margin-left: 20px !important" flex="25">' +
+                                    '    <md-input-container>' +
+                                    '        <md-select multiple ng-model="search.fieldtable" placeholder="Selecione">' +
+                                    '            <md-option ng-repeat="table in dynamicForm.allField" value="{{table.ref}}">{{table.label}}</md-option>' +
+                                    '        </md-select>' +
+                                    '    </md-input-container>' +
+                                    '</div>' +
+
+                                    '<div style="margin-left: 20px !important">' +
+                                    '    <md-input-container>' +
+                                    '        <md-button ng-class="searchIconsActive" class="md-icon-button" ng-click="searchColorActive()">' +
+                                    '            <md-tooltip md-direction="bottom">Ativos</md-tooltip>' +
+                                    '            <i class="material-icons">done_all</i>' +
+                                    '        </md-button>' +
+                                    '        <md-button ng-class="searchIconsInactivate" class="md-icon-button" ng-click="searchColorInactivate()">' +
+                                    '            <md-tooltip md-direction="bottom">Inativos</md-tooltip>' +
+                                    '            <i class="material-icons">highlight_off</i>' +
+                                    '        </md-button>' +
+                                    '        <md-button ng-class="searchIconsTrash" class="md-icon-button" ng-click="colorIconsTrash()">' +
+                                    '            <md-tooltip md-direction="bottom">Excluídos</md-tooltip>' +
+                                    '            <i class="material-icons">delete</i>' +
+                                    '        </md-button>' +
+                                    '    </md-input-container>' +
+                                    '</div>' +
+
+                                    '<md-button ng-click="searchPeople(search)" ng-show="search.search || search.fieldtable.length > 0 || search.active || search.inactive || search.trash" class="md-raised" style="font-size: 11px !important;">Pesquisar</md-button>';
+
+                        cb(null, template);
+                    },
+
+                    serializeQueryString : function (obj) {
+                        var str = [],
+                            p;
+
+                        for (p in obj) {
+                            if (obj.hasOwnProperty(p) && encodeURIComponent(obj[p])) {
+                                str.push(encodeURIComponent(p) + "=" + encodeURIComponent(obj[p]));
+                            }
+                        }
+
+                        if (str.length > 0) {
+                            return '&' + str.join("&");
+                        }
+
+                        return str.join("&");
+                    },
+
+                    searchPeople : function (search) {
+                        $rootScope.$emit('searchPeople', scope.serializeQueryString(search));
+                    },
+
+                    searchColorActive : function () {
+                        if (scope.searchIconsActive === 'checkOffColorIconFilter') {
+                            scope.searchIconsActive = 'checkOnColorIconFilter';
+                            scope.search.active     = true;
+                        } else {
+                            scope.searchIconsActive = 'checkOffColorIconFilter';
+                            delete scope.search.active;
+                        }
+                    },
+
+                    searchColorInactivate : function () {
+                        if (scope.searchIconsInactivate === 'checkOffColorIconFilter') {
+                            scope.searchIconsInactivate = 'checkOnColorIconFilter';
+                            scope.search.inactive       = true;
+                        } else {
+                            scope.searchIconsInactivate = 'checkOffColorIconFilter';
+                            delete scope.search.inactive;
+                        }
+                    },
+
+                    colorIconsTrash : function () {
+                        if (scope.searchIconsTrash === 'checkOffColorIconFilter') {
+                            scope.searchIconsTrash = 'checkOnColorIconFilter';
+                            scope.search.trash     = true;
+                        } else {
+                            scope.searchIconsTrash = 'checkOffColorIconFilter';
+                            delete scope.search.trash;
+                        }
+                    }
+                };
+
+                // defining template
+                builder.buildTemplate(scope, function (err, template) {
+
+                    // handling error
+                    if (err) {
+                        $log.warn(err);
+                        return;
+                    }
+
+                    // compiling template
+                    compiledElm = $compile(template)(scope);
+
+                    // handling post compile hooks
+                    if (builder.postCompile) {
+                        builder.postCompile(compiledElm);
+                    }
+
+                    // replacing into DOM
+                    element.replaceWith(compiledElm);
+
+                });
+            }
+        };
+    }
+
+    // injecting dependencies
+    PlgDataTableSearch.$inject = ['$log', '$compile', '$rootScope'];
+
+    // registering into angular
+    angular.module('plingUi').directive('plgDataTableSearch', PlgDataTableSearch);
+}());
+
 
 /*global angular */
 (function () {
